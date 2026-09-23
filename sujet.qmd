@@ -1,0 +1,60 @@
+---
+title: "Calcul des degrés jours unifiés"
+subtitle: "Projet info 1A CentralSupelec"
+author: "Thierry Mathé"
+format: pdf
+---
+
+Avec les besoins de chauffage et de climatisation, une partie des consommations d’énergie est liée aux variations de températures. Il s’agit essentiellement des consommations du secteur résidentiel et du secteur tertiaire. Cette sensibilité aux températures complique l’interprétation des évolutions de consommation car il n’est pas évident de faire la part entre les évolutions dues aux variations de températures de celles dues à d’autres facteurs conjoncturels ou structurels comme des changements d’habitudes de consommation, le remplacement d’équipements énergivores, la conversion vers d’autres énergies ou autre.
+
+Le degré jour unifié ou DJU est l’outil de référence permettant d’avoir un estimateur de la rigueur du climat et de calculer des consommations corrigées des variations climatiques (CVC). Les consommations CVC ont pour but de gommer les variations de consommation dues aux variations climatiques et de n’observer que les variations dues aux autres facteurs.
+
+
+Vous trouverez plus d'information sur les DJU, les méthodes de calcul, et les données à utilser dans le fichier `decription des DJU`
+
+# Fonctionnalitées attendues 
+
+## Importation des données
+
+## Calcul des DJU
+
+### DJU locaux
+
+La fonction `calcul_DJU_local` a pour but de calculer les DJU en un point précis sur une période et une périodicité données. Les températures moyennes journalières en ce point sont calculées à partir des relevées des `nb_stations` stations météo les plus proches du point donné et se trouvant à une distance inférieure à `distance_max_km` de ce point. Le calcul se fait avec une interpolarisation par pondération inverse des distances. De plus si le paramètre `altitude` est renseigné, les températures des stations seront corrigées par différence d'altitude. Le type de DJU renvoyé dépend des valeurs saisies dans les paramètres `seuil_climatisation` et `seuil_chauffage`. Les paramètres en entrée sont :
+
+- localisation du point de calcul: `latitude: float, longitude: float, altitude : float|None`
+- les seuils à utiliser, au moins une des deux valeurs doit être renseignée:  `seuil_chauffage: float|None, seuil_climatisation: float|None`
+- période: `debut: date, fin: date`
+- périodicité, à vous de définir les périodicités que vous mettrez à disposition: `periodicite: enum["hebomadaire", "mensuel" ...]` 
+- Nombre de stations utilisées pour calculer les températures journalières moyennes. Vous pouvez limiter ce nombre si vous le souhaitez: `nb_station: int = 1`
+- Distance maximale des stations utilisées pour calculer les températures journalières moyennes. Vous pouvez limiter la distance si vous le souhaitez: `distance_max_km: float = 100`
+
+Le résultat et un data frame pandas contnenant les colonnes suivantes:
+
+- `id_periode: str` l'identifiant de la pédiode des DJU par exemple `2024T2` pour le second trimestre 2024. A vous de définir et de documenter les identifiants que vous utiliserez pour chaque périodicité que vous proposerez.
+- `dju_chauffage: float` uniquement si le paramètre `seuil_chauffage` est renseigné
+- `dju_climatisation: float` uniquement si le paramètre `seuil_climatisation` est renseigné
+
+### DJU Territoriaux
+
+La fonction `calcul_DJU_territorial` permet de calculer les DJU sur une zone composée d'un ensemble de communes sur une période et une périodicité données. Il est aussi possible de préciser une granularité spaciale de calcul. Par exemple, cette fonction peut calculer les DJU de chaque département de la région Bretagne. Ici la zone de calcul est la région Bretagne et la granularité spaciale est le zonage département. Dans ce cas on aura `zonage = {"Region": ["53"]}` car le code Insee de la région Bretagne est "53" et `granularite = "Departement"`. Les zonages disponibles devront être `"Commmune"`, `"Departement"` et `"Region"`. Si vous le souhaitez vous pourrez en ajouter d'autres mais dans tous les cas votre programme devra être pensé pour que cet ajout soit simple. 
+
+La fonction calcule le DJU local aux coordonnées de la mairie de chaque communes incluse dans la zone de calcul, avec un nombre de station et une distance maximale donnés. Ces DJU communaux sont en suite agrégés suivant la granularité spaciale par moyenne pondérée par la population des communes. Les paramètres de la fonctions sont les suivants:
+
+- zonage de calcul : `zonage: {"id_zonage1":[liste de codes], "id_z}`
+- granularité spaciale : `granularite : enum["Commune", "Departement", "Region"]`
+- les seuils à utiliser, au moins une des deux valeurs doit être renseignée:  `seuil_chauffage: float|None, seuil_climatisation: float|None`
+- période: `debut: date, fin: date`
+- périodicité: `periodicite: enum["hebomadaire", "mensuel" ...]` 
+- Nombre de stations utilisées pour calculer les températures journalières moyennes: `nb_station: int = 1`
+- Distance maximale des stations utilisées pour calculer les températures journalières moyennes: `distance_max_km: float = 100`
+
+Le résultat renvoyé est un data frame pandas contenant les colonnes suivantes:
+
+- `id_periode: str` : l'identifiant de la pédiode des DJU 
+- `id_zone: str` : identifiant de la zone (zonage issue de `granularite`)
+- `dju_chauffage: float` : uniquement si le paramètre `seuil_chauffage` est renseigné
+- `dju_climatisation: float` : uniquement si le paramètre `seuil_climatisation` est renseigné
+
+
+

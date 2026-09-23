@@ -1,0 +1,24 @@
+---
+title: "Projet informatique de première année"
+subtitle: "CentraleSupélec"
+author: "Thierry Mathé"
+format: 
+ revealjs:
+    slide-number: true
+---
+
+
+## PLAN
+- Notions d’architecture d’un projet informatique et bonnes pratiques:
+    - Documentation
+    - Utilisation d’un fichier d’environnement .env (dotEnv)
+    - Découpage en couches
+    - Tests
+- Organisation et planification des tâches
+    - lister les tâches
+    - prioritisation
+
+# Notions d’architecture d’un projet informatique et bonnes pratiques
+
+## Documentation
+Voici un texte explicatif sur la diapositive suivante.
