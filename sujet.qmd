@@ -1,20 +1,170 @@
 ---
-title: "Calcul des degrés jours unifiés"
+title: "Calcul des degrés jours unifiés en Python"
 subtitle: "Projet info 1A CentralSupelec"
 author: "Thierry Mathé"
-format: pdf
+format:
+  pdf:
+    toc: true              # Active la table des matières
+    toc-title: "Sommaire"
+    toc-depth: 2           # Profondeur des titres inclus 
+    number-sections: true  # Numérote automatiquement les sections
 ---
 
-Avec les besoins de chauffage et de climatisation, une partie des consommations d’énergie est liée aux variations de températures. Il s’agit essentiellement des consommations du secteur résidentiel et du secteur tertiaire. Cette sensibilité aux températures complique l’interprétation des évolutions de consommation car il n’est pas évident de faire la part entre les évolutions dues aux variations de températures de celles dues à d’autres facteurs conjoncturels ou structurels comme des changements d’habitudes de consommation, le remplacement d’équipements énergivores, la conversion vers d’autres énergies ou autre.
+# Présentation des Degrés jours unifiés (DJU)
+
+Avec les besoins de chauffage et de climatisation, une partie des consommations d’énergie est liée aux variations de températures. Il s’agit essentiellement des consommations du secteur résidentiel et du secteur tertiaire. Cette sensibilité aux températures complique l’interprétation des évolutions de consommation car il n’est pas évident de faire la part entre celles dues aux variations de températures de celles dues à d’autres facteurs conjoncturels ou structurels comme des changements d’habitudes de consommation, le remplacement d’équipements énergivores, la conversion vers d’autres énergies ...
 
 Le degré jour unifié ou DJU est l’outil de référence permettant d’avoir un estimateur de la rigueur du climat et de calculer des consommations corrigées des variations climatiques (CVC). Les consommations CVC ont pour but de gommer les variations de consommation dues aux variations climatiques et de n’observer que les variations dues aux autres facteurs.
 
+## Définition des DJU
 
-Vous trouverez plus d'information sur les DJU, les méthodes de calcul, et les données à utilser dans le fichier `decription des DJU`
+La définition du DJU repose sur un constat empirique simple. Il existe un seuil de température au-dessus duquel la consommation de chauffage est nulle et en dessous duquel la consommation croît proportionnellement à la baisse des températures. Un phénomène analogue mais opposé est observé pour les consommations de climatisation.
 
-# Fonctionnalitées attendues 
+Le calcul des DJU commence donc par le choix d’un seuil de chauffage et/ou d’un seuil de climatisation. Pour le chauffage, beaucoup de seuils allant de 15°C à 18°C sont présents dans la littérature scientifique. Par exemple le service statistique du Ministère de la transition écologique, le Sdes utilise depuis 2023 un seuil de chauffage de 15°C, il était de 17°C auparavant.
 
-## Importation des données
+## Les DJU unitaires
+
+Pour obtenir le nombre de DJU de chauffage pour une journée en un lieu donné, on considère la température moyenne de cette journée et on la compare au seuil choisi :
+
+- si la température moyenne est supérieure au seuil, on a 0 DJU pour cette journée,
+- si elle est inférieure, le nombre de DJU est la différence entre la température moyenne et le seuil de telle sorte que le DJU soit toujours positif. 
+
+Le principe est inversé pour les DJU de climatisation. Il y a 0 DJU si la température moyenne est inférieure au seuil. Le nombre de DJU est égal à la différence entre la température moyenne et le seuil si la température est supérieure au seuil. Là encore le DJU est toujours positif.
+
+> C’est ce nombre de DJU pour une journée en un lieu donné que nous désignons comme DJU unitaire.
+
+Historiquement, la température moyenne est obtenue par la moyenne de la température maximale et de la température minimale de la journée. Ce mode de calcul est issu des premières stations météo qui ne relevaient que ces deux mesures. Les équipements permettent maintenant d’effectuer plus de mesures journalières et donc d’avoir des températures moyennes plus riches. Cependant par souci de cohérences des mesures sur de longues périodes, la moyenne des températures minimales et maximales a été conservée.
+
+## L’agrégation des DJU unitaires
+
+### Agrégation temporelle
+
+Pour obtenir le nombre de DJU en un lieu pour une période donnée, on somme les DJU journaliers sur la période.
+
+### Agrégation spatiale, les DJU territoriaux
+
+Pour obtenir les DJU d’une zone géographique qui comporte plusieurs DJU unitaires on calcule la moyenne de ces DJU. Cette moyenne peut être pondérée. Par exemple, pour calculer les DJU départementaux, le Sdes fait la moyenne des DJU des communes de chaque département pondérée par la population des communes.
+
+## Le calcul des DJU
+
+### Les relevés de températures
+
+Les relevés des stations de Météo France sont disponibles sur le site data.gouv à l’adresse suivante :
+
+https://www.data.gouv.fr/datasets/donnees-climatologiques-de-base-quotidiennes
+
+Les relevés quotidiens sont disponibles dans des fichiers départementaux. En plus des températures ces fichiers contiennent les coordonnées géographiques (latitude, longitude), l’altitude, la date, des données pluviométriques et éoliennes. Pour chaque département, trois fichiers sont disponibles: 
+
+- un fichier mis à jour quotidiennement contient les données de l’année en cours et de l’année précédente
+- un fichier historique contenant les relevés de 1950 à l’année N-2
+- un fichier contenant les relevés avant 1950
+
+Il s’agit de fichiers csv compressés.
+
+Ces relevés constituent une base de données très volumineuse qu’il convient de mettre en forme pour pouvoir l’utiliser : sélection des informations utiles, conversion vers un format plus adapté aux calculs intensifs comme parquet, DuckDB ou PostgreSQL. De plus, ces fichiers présentent des données manquantes. Suivant les cas, il faudra soit imputer des valeurs de remplacement ou écarter les stations qui ont trop de données manquantes une année donnée.
+
+### Calcul de DJU ponctuel
+
+Il s’agit ici calculer les DJU d’un lieu à partir de ses coordonnées et éventuellement de son altitude. En plus des coordonnées, il faut aussi indiquer :
+
+- les seuils de chauffe et/ou de climatisation,
+- la période de calcul (dates de début et de fin)
+- le pas temporel : veut-on des DJU quotidiens ou des cumuls hebdomadaires, mensuels, annuels…
+- nombre de station utilisées pour estimer les températures
+- eventuellement la distance maximale des stations retenues
+
+#### Estimation des températures 
+
+La première étape consiste à estimer les températures du lieu à partir des relevés des stations météo. Pour cela, la méthode standard est d’utiliser une interpolarisation par pondération inverse des distances.
+Les coordonnées étant données sous forme de couple longitude, latitude, le calcul des distances doit se faire avec la formule d’Haversine. Une autre méthode pourrait être de projeter ces coordonnées dans des coordonnées Lambert93 (pour la France métropolitaine) et d’utiliser la distance euclidienne.
+Enfin, si l’altitude du lieu est fournie, il convient de corriger les températures en fonction de l’altitude. Une méthode standard est de réduire la température de 0,65°C tous les 100 m.
+
+#### Calcul des DJU
+
+Il ne reste plus qu’à calculer les DJU unitaires sur la période donnée et de les sommer suivant le pas temporel.
+
+### Calcul de DJU sur une zone géographique
+
+Il s’agit de calculer les DJU sur des zones géographiques définies par un ensemble de communes. Par exemple calculer les DJU de chaque région de métropole, ou de chaque département d’une région. Pour cela il faut avoir les paramètres suivants :
+
+- les seuils de chauffe et/ou de climatisation,
+- la période de calcul (dates de début et de fin)
+- le pas temporel : veut-on des DJU quotidiens ou des cumuls hebdomadaires, mensuels, annuel, ...
+- La zone géographique totale, ex : la France métropolitaine, un ensemble de régions, ...
+- Le niveau d’agrégation des DJU, ex les Régions, les départements, ...
+- nombre de station utilisées pour estimer les températures de chaque commune
+- la distance maximale des stations
+- indicateur de prise en compte de l’altitude des communes
+
+Pour ce faire, il faut calculer les DJU de chaque commune en utilisant la méthode du DJU ponctuel puis de les agréger au niveau demandé par moyenne pondérée par la population.
+
+Pour pouvoir effectuer ces calculs il faut donc disposer des informations suivantes :
+
+- coordonnée des communes
+- l’altitude des communes
+- la population des communes
+
+Ces données sont aussi disponibles sur le site data.gouv aux adresses suivantes :
+
+- https://geo.api.gouv.fr/decoupage-administratif
+- https://www.data.gouv.fr/dataservices/api-geoplateforme-calcul-altimetrique
+
+Afin de limite le nombre de calculs de chaque requête il convient d'effectuer à l'avance tous les calculs possibles et de les stoker. 
+
+## Calcul des coefficients de rigueur du climat et consommations corrigées des variations climatiques
+
+La correction des variations climatiques a pour but de gommer les variations de consommations dues aux variations des températures. Elle repose sur une décomposition de la consommation observée en une partie dite *non thermosensible* qui reste inchangée et une partie qui dépend des températures qui est dite *thermosensible* qui va être corrigée. Comme dit en introduction, on considère que la consommation thermosensible est proportionnelle au nombre de DJU observés pour la période de consommation. Le coefficient de proportionnalité est appelé *thermosensibilité*.
+
+La correction consiste à remplacer la consommation thermosensible par une estimation de la consommation si les températures avaient été « normales ». La température normale est représentée par un DJU de référence qui est l’agrégation des DJU dans le voisinage de la zone observée sur plusieurs années. Par exemple, le Sdes prend pour valeur de référence l’agrégation des DJU nationaux annuels sur la période 1991-2020.
+
+Dans ces conditions, la correction de la partie thermosensible consiste à la multiplier par le rapport du DJU de référence par le DJU observé. Ce rapport est appelé *coefficient de rigueur*.
+
+Pour corriger la consommation observée, il faut aussi disposer de la part thermosensible de cette consommation afin de pouvoir séparer les parties thermosensible et non thermosensible. 
+
+
+# Fonctionnalités attendues 
+
+## Import des données
+
+### Import des données météo
+
+La fonction `import_meteo` a pour but de télécharger les fichiers des données météorologiques depuis le site:
+
+https://www.data.gouv.fr/datasets/donnees-climatologiques-de-base-quotidiennes
+
+Elle va ensuite décompresser les fichiers puis en extraitre les informations utiles. Elle devra aussi imputer les valeurs manquantes, supprimer les années ou les stations inutilisables. Enfin, elle crée deux fichiers parquet:
+- liste des stations qui contient les code, nom, latitude, longitude, altitude des stations météo que vous allez utiliser.
+- liste des relevés qui contient le code de la station, la date et les informations météo qui vous parraissent utiles
+
+Ses paramètres d'entrés sont:
+
+- informations de connexion : `host: str, path: str`
+- définition de la période à extraire des relevés : `debut: date, fin: date`
+- liste des départements à extraire (utile pour les test ou si vous manquez de place): `departements : list[str]|None`
+- localisation des fichiers crées : `chemin_fichiers : str`
+
+A priori, la fonction ne renvoie rien mais si vous le souhaitez elle peut renvoyer des informations concernant l'import.
+
+### Import des communes, département et région
+
+La fonction `import_geographie` a pour but d'extraire toutes les informations géographiques utiles pour les traitement depuis les API suivantes:
+
+- https://geo.api.gouv.fr/decoupage-administratif/communes
+- https://geo.api.gouv.fr/decoupage-administratif/departements
+- https://geo.api.gouv.fr/decoupage-administratif/regions
+
+Si vous avez besoin d'estimer des altitudes vous pourrez utiliser l'API:
+
+- https://www.data.gouv.fr/dataservices/api-geoplateforme-calcul-altimetrique
+
+La fonction stocke enfin les données dans des fichiers. Les paramètres de la fonction sont:
+
+- informations de connexion administratit : `host_geo: str, path_geo: str`
+- informations de connexion altimetrie : `host_alti: str, path_alti: str`
+- liste des départements à extraire : `departements : list[str]|None`
+- localisation des fichiers crées : `chemin_fichiers : str`
+
+La encore cette fonction ne renvoie rien.
 
 ## Calcul des DJU
 
@@ -26,8 +176,8 @@ La fonction `calcul_DJU_local` a pour but de calculer les DJU en un point préci
 - les seuils à utiliser, au moins une des deux valeurs doit être renseignée:  `seuil_chauffage: float|None, seuil_climatisation: float|None`
 - période: `debut: date, fin: date`
 - périodicité, à vous de définir les périodicités que vous mettrez à disposition: `periodicite: enum["hebomadaire", "mensuel" ...]` 
-- Nombre de stations utilisées pour calculer les températures journalières moyennes. Vous pouvez limiter ce nombre si vous le souhaitez: `nb_station: int = 1`
-- Distance maximale des stations utilisées pour calculer les températures journalières moyennes. Vous pouvez limiter la distance si vous le souhaitez: `distance_max_km: float = 100`
+- Nombre de stations utilisées pour calculer les températures journalières moyennes. Si vous le souhaitez vous pouvez definir une valeur par défaut et limiter ce nombre : `nb_station: int = 1`
+- Distance maximale des stations utilisées pour calculer les températures journalières moyennes. Si vous le souhaitez, vous pouvez definir une valeur par défaut et limiter cette distance: `distance_max_km: float = 100`
 
 Le résultat et un data frame pandas contnenant les colonnes suivantes:
 
@@ -37,12 +187,12 @@ Le résultat et un data frame pandas contnenant les colonnes suivantes:
 
 ### DJU Territoriaux
 
-La fonction `calcul_DJU_territorial` permet de calculer les DJU sur une zone composée d'un ensemble de communes sur une période et une périodicité données. Il est aussi possible de préciser une granularité spaciale de calcul. Par exemple, cette fonction peut calculer les DJU de chaque département de la région Bretagne. Ici la zone de calcul est la région Bretagne et la granularité spaciale est le zonage département. Dans ce cas on aura `zonage = {"Region": ["53"]}` car le code Insee de la région Bretagne est "53" et `granularite = "Departement"`. Les zonages disponibles devront être `"Commmune"`, `"Departement"` et `"Region"`. Si vous le souhaitez vous pourrez en ajouter d'autres mais dans tous les cas votre programme devra être pensé pour que cet ajout soit simple. 
+La fonction `calcul_DJU_territorial` permet de calculer les DJU sur une zone composée d'un ensemble de communes sur une période et une périodicité données. Il est aussi possible de préciser une granularité spaciale de calcul. Par exemple, cette fonction peut calculer les DJU de chaque département de la région Bretagne. Ici la zone de calcul est la région Bretagne et la granularité spaciale est le zonage département. Dans ce cas on aura `zonage = {"Region": ["53"]}` car le code Insee de la région Bretagne est "53" et `granularite = "Departement"`. Les zonages disponibles devront être `"Commmune"`, `"Departement"`, `"Region"` et `"France"`. Si vous le souhaitez vous pourrez en ajouter d'autres mais dans tous les cas votre programme devra être pensé pour que cet ajout soit simple. 
 
-La fonction calcule le DJU local aux coordonnées de la mairie de chaque communes incluse dans la zone de calcul, avec un nombre de station et une distance maximale donnés. Ces DJU communaux sont en suite agrégés suivant la granularité spaciale par moyenne pondérée par la population des communes. Les paramètres de la fonctions sont les suivants:
+La fonction calcule le DJU local aux coordonnées de la mairie de chaque communes incluses dans la zone de calcul, avec un nombre de station et une distance maximale donnés. Ces DJU communaux sont en suite agrégés suivant la granularité spaciale par moyenne pondérée par la population des communes. Les paramètres de la fonctions sont les suivants:
 
-- zonage de calcul : `zonage: {"id_zonage1":[liste de codes], "id_z}`
-- granularité spaciale : `granularite : enum["Commune", "Departement", "Region"]`
+- zonage de calcul : `zonage: {"id_zonage1":[liste de codes], ... }`
+- granularité spaciale : `granularite : enum["Commune", "Departement", "Region", "France"]`
 - les seuils à utiliser, au moins une des deux valeurs doit être renseignée:  `seuil_chauffage: float|None, seuil_climatisation: float|None`
 - période: `debut: date, fin: date`
 - périodicité: `periodicite: enum["hebomadaire", "mensuel" ...]` 
@@ -52,6 +202,7 @@ La fonction calcule le DJU local aux coordonnées de la mairie de chaque commune
 Le résultat renvoyé est un data frame pandas contenant les colonnes suivantes:
 
 - `id_periode: str` : l'identifiant de la pédiode des DJU 
+- `zonnage: str` : zonage utilisé
 - `id_zone: str` : identifiant de la zone (zonage issue de `granularite`)
 - `dju_chauffage: float` : uniquement si le paramètre `seuil_chauffage` est renseigné
 - `dju_climatisation: float` : uniquement si le paramètre `seuil_climatisation` est renseigné
